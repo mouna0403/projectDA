@@ -43,22 +43,24 @@ dates = 14:181
 loading = loading[stations, dates]
 colnames(loading) = 1:length(dates)
 
-coord <- coord[!duplicated(coord[,1]), ]
+#coord <- coord[!duplicated(coord[,1]), ]
 
+#loading <- loading[!duplicated(rownames(loading)), ]
 
 
 ```
 
 
 ```{r }
-head(loading)
 
 
+str(loading)
+loading
 
 ```
 
 ```{r }
-head(coord)
+coord
 
 
 
@@ -236,104 +238,190 @@ grid.arrange(g1,g2,ncol=2)
 ```{r}
 
 fviz_pca_var(acp)
-fviz_pca_ind(acp,col.ind="contrib",label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
 fviz_pca_var(acp,axes=c(1,3))
-fviz_pca_ind(acp,col.ind="contrib",label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ),axes=c(1,3))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ),axes=c(1,3))
 ```
+
+
+
+
+
+
+CLUSTERING
+
 
 K MEANS 
 
 ```{r}
 
-km.loading <- kmeans(loading, centers = 2)
-
-# Représentation dans les coordonnées de l'acp
-acp2 <- PCA(cbind(clus = as.factor(km.loading$cluster),
-          loading), scale.unit = TRUE,
-          graph = FALSE, quali.sup = 1:2, ncp = 7)
-
-
-fviz_pca_ind(acp2, label="none", habillage="clus")
-
-```
+reskmeans <- kmeans(loading, centers = 2)
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-LDA
-
-```{r}
-
-str(loading)
-
-```
-
-```{r}
-
-head(loading)
-
-
-```
-
-
-```{r}
-
-
-```
-
-
-```{r}
+#fviz_pca_ind(acp2, label="none", habillage="clus")
+fviz_pca_ind(acp, axes=c(1,2), geom=c("point"), habillage=as.factor(reskmeans$cluster))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
 
 
 ```
 
 ```{r}
 
+### TO BE COMPLETED ### 
+# Elbow method used with silhouette score as metric
+
+fviz_nbclust(loading, FUNcluster=kmeans, method="silhouette") +
+    ggtitle("Silhouette score according to the number of clusters")
+
+```
+
+
+CLUSTERING WITH CAH
+
+
+```{r}
+
+### TO BE COMPLETED ### 
+
+d = dist(loading, method="euclidean")
+
+# Clustering
+hclustsingle = hclust(d, method="single")
+hclustcomplete = hclust(d, method="complete")
+hclustaverage = hclust(d, method="average")
+
+# --- #
+
+#Dendograms visualization
+options(repr.plot.width=10, repr.plot.height=10)
+
+fviz_dend(hclustsingle, show_labels=FALSE, main='Dendrogram - Single linkage')
+fviz_dend(hclustcomplete, show_labels=FALSE, main='Dendrogram - Complete linkage')
+fviz_dend(hclustaverage, show_labels=FALSE, main='Dendrogram - Average linkage')
 
 ```
 
 
 
+FIND THE BEST NUMBER OF CLUSTER
+
+
+```{r}
+
+### TO BE COMPLETED ### 
+options(repr.plot.width = 12, repr.plot.height = 6)
+
+grid.arrange(
+    fviz_nbclust(loading, FUNcluster=hcut, method="wss") + ggtitle("WSS according to nb of clusters"),
+    fviz_nbclust(loading, FUNcluster=hcut, method="silhouette") + ggtitle("silhouette according to nb of clusters"),
+    ncol=2
+)
+
+```
+
+
+ON AFFICHE LES CLUSTER AVEC LE MEILLEUR NOMBRE DE CLUSTER (2)
+
+
+```{r}
+
+reshclust = cutree(hclustcomplete, 2)
+
+# --- #
+
+fviz_dend(hclustcomplete, k=2, show_labels=FALSE, rect=TRUE)
+```
+
+
+```{r}
 
 
 
+fviz_pca_ind(acp, axes=c(1,2), geom=c("point"), habillage=as.factor(reshclust))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
+    
+
+
+```
+
+
+CLUSTERING WITH GAUSSIAN MXTURE
 
 
 
+```{r}
+
+
+library(mclust)
+
+```
+
+
+CRITERE = BIC
+
+```{r}
 
 
 
+# --- #
+
+resBICall = Mclust(loading, G=2:20)
+summary(resBICall)
+
+fviz_mclust(resBICall, what="BIC")
+
+```
 
 
+BEST MODEL WITH BIC
+
+```{r}
+
+options(repr.plot.width = 10, repr.plot.height = 6)
+
+resBIC = Mclust(loading, G=2, modelNames = "VVE")
+fviz_cluster(resBIC, data=loading, ellipse.type="norm", geom="point")
+
+```
 
 
+CRITERE = ICL
 
 
+```{r}
+
+resICLall = mclustICL(loading, G=2:20)
+summary(resICLall)
+
+```
+
+BEST MODEL WITH ICL
 
 
+```{r}
+
+options(repr.plot.width = 13, repr.plot.height = 6)
+
+resICL = Mclust(loading, G=2, modelNames="EVV")
+fviz_cluster(resICL, data=loading, ellipse.type="norm", geom="point")
+
+```
 
 
+COMPARAISON DES ALGORITHMES DE CLUSTERING
+
+```{r}
 
 
+fviz_pca_ind(acp, col.ind=as.factor(reskmeans$cluster), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with Kmeans")
+fviz_pca_ind(acp,col.ind=as.factor(reshclust), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with CAH") 
+fviz_pca_ind(acp,col.ind=as.factor(resICL$classification), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with GMM (ICL)")
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" )) 
 
 
-
-
-
+```
 
 
 
@@ -349,6 +437,28 @@ Velib Station Map
 
 library(ggmap)
 ```
+
+
+```{r }
+
+
+str(coord)
+
+# Vérifier les lignes en double dans coord
+duplicated_rows <- duplicated(coord)
+
+# Afficher les lignes en double (si elles existent)
+if (any(duplicated_rows)) {
+  duplicated_rows_indices <- which(duplicated_rows)
+  duplicated_rows_data <- coord[duplicated_rows_indices, ]
+  print("Lignes en double dans coord :")
+  print(duplicated_rows_data)
+} else {
+  print("Aucune ligne en double dans coord.")
+}
+
+```
+
 
 VELIB STATION MAP
 
@@ -457,7 +567,7 @@ ggplot(df, aes(x="", y=size, fill=labels)) +
 ```{r }
 options(repr.plot.width = 10, repr.plot.height = 10)
 
-qmplot(data=coord, longitude, latitude, color=hill) +
+qmplot(data=coord, longitude, latitude, color=loading) +
     scale_color_hue(direction = -1) +
     labs(title = 'Hilltop stations')
 
@@ -518,59 +628,46 @@ grid.arrange(g1,g2,ncol=2)
 ```
 
 ```{r }
-head(coord[,c(1,2)])
-
-```
-
-```{r }
-
-str(loading)
-
-```
-
-```{r }
-str(coord)
-
-```
-PCA sur Loading
-```{r }
-
-pca_result <- PCA(loading, scale.unit = TRUE, ncp = min(150, ncol(loading)), graph = FALSE)
-plot(pca_result$eig[,2], type = "b", main = "Variance Explained by PCA Components", xlab = "Principal Component", ylab = "Percentage of Variance Explained")
 
 
 ```
 
 ```{r }
-fviz_pca_ind(pca_result,
-             label = "none",  # This prevents the labels from being shown
-             col.ind = "cos2",  # Color by the quality of representation on the dimensions (optional)
-             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),  # Color gradient (optional)
-             repel = TRUE  # Avoid overplotting (optional)
-)
+
+library(FactoMineR)
+acp <- PCA(coord[,c(1,2)], scale.unit = TRUE,
+           graph = FALSE, quali.sup = 1, quanti.sup = 2, ncp = 7)
+# Décroissance des valeurs propres
+library(factoextra)
+g1<-fviz_eig(acp, addlabels = TRUE, ylim = c(0, 40))
+library(reshape2)
+g2<-ggplot(melt(acp$ind$coord),aes(x=Var2,y=value))+
+  geom_boxplot()+
+  xlab("")
+grid.arrange(g1,g2,ncol=2)
 
 ```
 
 ```{r }
-str(coord)
+# Vérifier s'il y a des lignes nulles dans coord
+null_rows <- which(rowSums(coord[, c("longitude", "latitude", "bonus")]) == 0)
+
+# Afficher les indices des lignes nulles (si elles existent)
+if (length(null_rows) > 0) {
+  print("Indices des lignes nulles dans coord :")
+  print(null_rows)
+} else {
+  print("Aucune ligne nulle dans coord.")
+}
+
+
 
 ```
 
-```{r }
-# Perform PCA
-pca_result <- prcomp(coord[, -3], scale. = TRUE)  # Exclude 'bonus' column
-
-# Determine the number of principal components to retain
-summary(pca_result)
-
-# Plot the proportion of variance explained by each principal component
-plot(pca_result, type = "l")
-
-# Cumulative proportion of variance explained
-cumsum(pca_result$sdev^2) / sum(pca_result$sdev^2)
 
 
-```
+
+
 
 ```{r }
 
