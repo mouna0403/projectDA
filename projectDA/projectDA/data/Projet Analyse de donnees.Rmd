@@ -1,0 +1,690 @@
+---
+title: "Projet"
+author: "moi"
+date: "2024-02-16"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r }
+library(ggplot2)
+library(reshape2)
+library(gridExtra)
+
+
+```
+
+```{r }
+load('velib.RData')
+summary(velib)
+
+
+```
+
+```{r }
+
+# data preparation
+loading = as.matrix(velib$data)
+colnames(loading) = 1:ncol(loading)
+rownames(loading) = velib$names
+
+stations = 1:nrow(loading)
+coord = velib$position[stations,]
+coord$bonus = velib$bonus[stations]
+
+# select exactly 7 days of data (we remove the first 13 dates)
+dates = 14:181
+loading = loading[stations, dates]
+colnames(loading) = 1:length(dates)
+
+#coord <- coord[!duplicated(coord[,1]), ]
+
+#loading <- loading[!duplicated(rownames(loading)), ]
+
+
+```
+
+
+```{r }
+
+
+str(loading)
+loading
+
+```
+
+```{r }
+coord
+
+
+
+```
+
+LOADING AT A STATION
+
+
+```{r }
+
+i = 1
+options(
+  repr.plot.width = 20,     # Largeur en pouces
+  repr.plot.height = 10     # Hauteur en pouces
+)
+plot(loading[i,])
+abline(v = seq(0,length(loading[i,]), by = 24), col = "red", lty = 1)
+
+```
+
+```{r }
+options(repr.plot.width = 15, repr.plot.height = 10)
+
+# --- #
+
+timeTick = 1 + 24*(0:6)  # vector corresponding to the beginning of days
+
+# select 16 stations
+stations = sample.int(nrow(x), 16 , replace=TRUE)
+
+df = melt(x[stations,])  #the function melt reshapes it from wide to long
+
+p = list()
+for (i in 1:16){
+    dfi = df[df$Var1 == velib$names[stations[i]],]
+    p[[i]] = ggplot(dfi, aes(x=Var2, y=value)) + 
+        geom_line(col="darkorchid") + 
+        geom_vline(xintercept=timeTick, col="orange", linetype="dashed") +
+        labs(title=velib$names[stations[i]])
+}
+do.call(grid.arrange,p)
+
+```
+
+
+
+```{r }
+
+str(coord)
+```
+
+
+BOXPLOT OF THE VARIABLE
+
+```{r }
+options(repr.plot.width = 15, repr.plot.height = 6)
+
+boxplot(loading)
+
+```
+
+AVERAGE LOADING .....
+
+
+```{r }
+### TO BE COMPLETED ### 
+
+print('--- Average fill rate ---')
+mean(loading)
+
+# --- #
+print('')
+means = list()
+for (i in 1:length(loading[,1]))
+    {
+    means[i] = mean(loading[i,])
+     }
+indice_min = which.min(means)
+indice_max = which.max(means)
+
+print('--- Least crowded station, on average ---')
+print(velib$names[indice_min])
+
+# --- #
+print('')
+
+print('--- Fullest station, on average ---')
+print(velib$names[indice_max])
+
+
+```
+
+
+Does the average load vary from one station to another?
+
+
+
+```{r }
+
+
+
+plot(seq(1, length(means)), means)
+abline(h = mean(loading), col = "red", lty = 1)
+
+```
+
+Does the average load vary over the course of a day?
+
+Plot the average hourly loading for each day (on a single graph).
+
+```{r }
+
+
+mean_per_hour_per_day = colMeans(loading)
+mean_per_hour_per_day = matrix(mean_per_hour_per_day, nrow = 24)
+mean_per_hour         = rowMeans(mean_per_hour_per_day)
+
+# --- #
+
+mean_per_hour_per_day            = as.data.frame(mean_per_hour_per_day)
+colnames(mean_per_hour_per_day)  = list("Monday", "Tuesday", "Wednesday","Thursday", "Friday", "Saturday", "Sunday")
+mean_per_hour_per_day$time_range = c(1:24)
+mean_per_hour_per_day            = melt(mean_per_hour_per_day, id='time_range', variable.name='Days')
+
+mean_per_hour            = as.data.frame(mean_per_hour)
+colnames(mean_per_hour)  = list("Weekly")
+mean_per_hour$time_range = c(1:24)
+
+# --- #
+
+options(repr.plot.width = 15, repr.plot.height = 10)
+
+ggplot() + 
+    geom_line(data=mean_per_hour_per_day, aes(x=time_range, y=value, color=Days)) + 
+    geom_line(data=mean_per_hour, aes(x=time_range, y=Weekly), linewidth = 1.5)
+
+```
+
+ETUDE DESCRIPTIVE DE LOADING
+
+```{r}
+
+library(corrplot)
+
+
+cor_matrix <- cor(loading, use = "complete.obs")
+
+
+corrplot(cor_matrix, method = "color")
+
+
+```
+
+
+ACP
+
+```{r}
+library(FactoMineR)
+acp <- PCA(loading, scale.unit = TRUE,
+           graph = FALSE, quali.sup = 1, quanti.sup = 2, ncp = 7)
+# Décroissance des valeurs propres
+library(factoextra)
+g1<-fviz_eig(acp, addlabels = TRUE, ylim = c(0, 40))
+library(reshape2)
+g2<-ggplot(melt(acp$ind$coord),aes(x=Var2,y=value))+
+  geom_boxplot()+
+  xlab("")
+grid.arrange(g1,g2,ncol=2)
+
+
+
+
+```
+
+```{r}
+
+fviz_pca_var(acp)
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
+fviz_pca_var(acp,axes=c(1,3))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ),axes=c(1,3))
+```
+
+
+
+
+
+
+CLUSTERING
+
+
+K MEANS 
+
+```{r}
+
+reskmeans <- kmeans(loading, centers = 2)
+
+
+
+
+#fviz_pca_ind(acp2, label="none", habillage="clus")
+fviz_pca_ind(acp, axes=c(1,2), geom=c("point"), habillage=as.factor(reskmeans$cluster))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
+
+
+```
+
+```{r}
+
+### TO BE COMPLETED ### 
+# Elbow method used with silhouette score as metric
+
+fviz_nbclust(loading, FUNcluster=kmeans, method="silhouette") +
+    ggtitle("Silhouette score according to the number of clusters")
+
+```
+
+
+CLUSTERING WITH CAH
+
+
+```{r}
+
+### TO BE COMPLETED ### 
+
+d = dist(loading, method="euclidean")
+
+# Clustering
+hclustsingle = hclust(d, method="single")
+hclustcomplete = hclust(d, method="complete")
+hclustaverage = hclust(d, method="average")
+
+# --- #
+
+#Dendograms visualization
+options(repr.plot.width=10, repr.plot.height=10)
+
+fviz_dend(hclustsingle, show_labels=FALSE, main='Dendrogram - Single linkage')
+fviz_dend(hclustcomplete, show_labels=FALSE, main='Dendrogram - Complete linkage')
+fviz_dend(hclustaverage, show_labels=FALSE, main='Dendrogram - Average linkage')
+
+```
+
+
+
+FIND THE BEST NUMBER OF CLUSTER
+
+
+```{r}
+
+### TO BE COMPLETED ### 
+options(repr.plot.width = 12, repr.plot.height = 6)
+
+grid.arrange(
+    fviz_nbclust(loading, FUNcluster=hcut, method="wss") + ggtitle("WSS according to nb of clusters"),
+    fviz_nbclust(loading, FUNcluster=hcut, method="silhouette") + ggtitle("silhouette according to nb of clusters"),
+    ncol=2
+)
+
+```
+
+
+ON AFFICHE LES CLUSTER AVEC LE MEILLEUR NOMBRE DE CLUSTER (2)
+
+
+```{r}
+
+reshclust = cutree(hclustcomplete, 2)
+
+# --- #
+
+fviz_dend(hclustcomplete, k=2, show_labels=FALSE, rect=TRUE)
+```
+
+
+```{r}
+
+
+
+fviz_pca_ind(acp, axes=c(1,2), geom=c("point"), habillage=as.factor(reshclust))
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" ))
+    
+
+
+```
+
+
+CLUSTERING WITH GAUSSIAN MXTURE
+
+
+
+```{r}
+
+
+library(mclust)
+
+```
+
+
+CRITERE = BIC
+
+```{r}
+
+
+
+# --- #
+
+resBICall = Mclust(loading, G=2:20)
+summary(resBICall)
+
+fviz_mclust(resBICall, what="BIC")
+
+```
+
+
+BEST MODEL WITH BIC
+
+```{r}
+
+options(repr.plot.width = 10, repr.plot.height = 6)
+
+resBIC = Mclust(loading, G=2, modelNames = "VVE")
+fviz_cluster(resBIC, data=loading, ellipse.type="norm", geom="point")
+
+```
+
+
+CRITERE = ICL
+
+
+```{r}
+
+resICLall = mclustICL(loading, G=2:20)
+summary(resICLall)
+
+```
+
+BEST MODEL WITH ICL
+
+
+```{r}
+
+options(repr.plot.width = 13, repr.plot.height = 6)
+
+resICL = Mclust(loading, G=2, modelNames="EVV")
+fviz_cluster(resICL, data=loading, ellipse.type="norm", geom="point")
+
+```
+
+
+COMPARAISON DES ALGORITHMES DE CLUSTERING
+
+```{r}
+
+
+fviz_pca_ind(acp, col.ind=as.factor(reskmeans$cluster), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with Kmeans")
+fviz_pca_ind(acp,col.ind=as.factor(reshclust), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with CAH") 
+fviz_pca_ind(acp,col.ind=as.factor(resICL$classification), geom=c("point"), axes=c(1,2)) + ggtitle("Cluster with GMM (ICL)")
+fviz_pca_ind(acp,col.ind = loading[, 1],label="none",gradient.cols = c("white", "#2E9FDF", "#FC4E07" )) 
+
+
+```
+
+
+
+
+
+Velib Station Map
+
+
+
+```{r }
+
+
+
+library(ggmap)
+```
+
+
+```{r }
+
+
+str(coord)
+
+# Vérifier les lignes en double dans coord
+duplicated_rows <- duplicated(coord)
+
+# Afficher les lignes en double (si elles existent)
+if (any(duplicated_rows)) {
+  duplicated_rows_indices <- which(duplicated_rows)
+  duplicated_rows_data <- coord[duplicated_rows_indices, ]
+  print("Lignes en double dans coord :")
+  print(duplicated_rows_data)
+} else {
+  print("Aucune ligne en double dans coord.")
+}
+
+```
+
+
+VELIB STATION MAP
+
+Where are the velib stations located?
+
+    Plot the stations coordinates on a 2D map (latitude vs. longitude)
+    Use the average hourly loading as a color scale
+    You can consider different times of day, for example 6am, 12pm, 11pm on Monday, or the average weekly load at 6am.
+    You can consider different days at the same time, or the average load for each day.
+    You can use the qmplot function of the ggmap to charge the map of Paris
+
+
+```{r }
+ggmap::register_stadiamaps(key = "f5428ead-0f2c-4508-bd37-50d807a861ca")
+
+## TO BE COMPLETED ### 
+## Simple 2D representation
+# Monday at hour 6h, 12h, 23h
+
+# Hours to be displayed
+h     = 18
+hours = seq(h, 168, 24)
+load_per_hour = rowMeans(loading[,hours])
+
+df = coord
+df$loading = load_per_hour
+
+# --- #
+
+options(repr.plot.width = 10, repr.plot.height = 10)
+
+qmplot(data=df, longitude, latitude, color=loading) +
+    labs(title = paste('Stations loading - Weekly average at',h,'h'))
+
+```
+
+```{r }
+
+## Simple 2D representation
+# Loading at 6pm, depending on the day of the week
+
+options(repr.plot.width = 20, repr.plot.height = 15)
+
+h = 18
+hours = seq(h, 168, 24)
+days  = list("Monday", "Tuesday", "Wednesday","Thursday", "Friday", "Saturday", "Sunday")
+
+dfi = coord
+p = list()
+for (i in 1:7){
+    dfi$loading = loading[,hours[i]]
+    p[[i]] = ggplot(dfi, aes(x=longitude, y=latitude, color=loading)) + 
+        geom_point() +
+        labs(title = paste("Stations loading - ", days[i], h,"h"))
+}
+
+do.call(grid.arrange,c(p, ncol=3))
+```
+
+```{r }
+
+h     = 18
+hours = seq(h, 168, 24)
+load_per_hour = rowMeans(loading[,hours])
+
+df = coord
+df$loading = load_per_hour
+
+# --- #
+
+options(repr.plot.width = 10, repr.plot.height = 10)
+
+qmplot(data=df, longitude, latitude, color=loading) +
+    labs(title = paste('Stations loading - Weekly average at',h,'h'))
+
+```
+
+
+
+Influence of Altitude Difference on Station Loading
+
+
+
+```{r}
+
+
+df = data.frame(size=c(sum(coord$bonus==0), sum(coord$bonus==1)),
+                labels = c('No hill','Hill'))
+
+ggplot(df, aes(x="", y=size, fill=labels)) +
+    geom_bar(stat="identity", width=1) +
+    geom_text(aes(label=size), position = position_stack(vjust = 0.5)) +
+    coord_polar(theta = "y") +
+    scale_color_hue(direction = -1) +  # to reverse the default colormap order
+    theme_void()
+
+
+
+
+```
+
+
+
+
+
+```{r }
+options(repr.plot.width = 10, repr.plot.height = 10)
+
+qmplot(data=coord, longitude, latitude, color=loading) +
+    scale_color_hue(direction = -1) +
+    labs(title = 'Hilltop stations')
+
+```
+
+```{r }
+
+coord$hill = as.factor(coord$bonus)
+levels(coord$hill) = c('No hill','Hill')
+
+# --- #
+
+options(repr.plot.width = 10, repr.plot.height = 10)
+
+ggplot(coord, aes(x=longitude, y=latitude, color=hill)) + 
+    geom_point() +
+    scale_color_hue(direction = -1) +
+    labs(title = 'Hilltop stations')
+```
+
+
+
+ETUDE DESCRIPTIVE COORD
+
+
+```{r }
+
+library(corrplot)
+
+
+cor_matrix <- cor(coord[,c(1,2)], use = "complete.obs")
+
+
+corrplot(cor_matrix, method = "color")
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+library(FactoMineR)
+acp <- PCA(coord[,c(1,2)], scale.unit = TRUE,
+           graph = FALSE, quali.sup = 1, quanti.sup = 2, ncp = 7)
+# Décroissance des valeurs propres
+library(factoextra)
+g1<-fviz_eig(acp, addlabels = TRUE, ylim = c(0, 40))
+library(reshape2)
+g2<-ggplot(melt(acp$ind$coord),aes(x=Var2,y=value))+
+  geom_boxplot()+
+  xlab("")
+grid.arrange(g1,g2,ncol=2)
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+library(FactoMineR)
+acp <- PCA(coord[,c(1,2)], scale.unit = TRUE,
+           graph = FALSE, quali.sup = 1, quanti.sup = 2, ncp = 7)
+# Décroissance des valeurs propres
+library(factoextra)
+g1<-fviz_eig(acp, addlabels = TRUE, ylim = c(0, 40))
+library(reshape2)
+g2<-ggplot(melt(acp$ind$coord),aes(x=Var2,y=value))+
+  geom_boxplot()+
+  xlab("")
+grid.arrange(g1,g2,ncol=2)
+
+```
+
+```{r }
+# Vérifier s'il y a des lignes nulles dans coord
+null_rows <- which(rowSums(coord[, c("longitude", "latitude", "bonus")]) == 0)
+
+# Afficher les indices des lignes nulles (si elles existent)
+if (length(null_rows) > 0) {
+  print("Indices des lignes nulles dans coord :")
+  print(null_rows)
+} else {
+  print("Aucune ligne nulle dans coord.")
+}
+
+
+
+```
+
+
+
+
+
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
+
+```{r }
+
+
+```
